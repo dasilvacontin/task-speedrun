@@ -231,7 +231,9 @@
             return duration
         }
 
-        function durationToTimeString (n) {
+        function durationToTimeString (n, prefix) {
+            if (prefix == null) prefix = false
+
             let negative = n < 0
             if (negative) {
                 n *= -1
@@ -252,7 +254,11 @@
                 return (n < 10 && i > 0)? `0${n}` : `${n}`
             })
 
-            return (negative ? '-' : '') + timeArr.join(':')
+            if (prefix) {
+                return (negative ? '-' : '+') + timeArr.join(':')
+            } else {
+                return (negative ? '-' : '') + timeArr.join(':')
+            }
         }
 
         function createTask (name, durationStr, status) {
@@ -311,7 +317,7 @@
             <div class="c-TaskRow ${taskStatus}" ${taskStatus === TaskStatus.TODO ? `onmousedown=promptEditTask(${i})` : ``}>
                 <p class="c-TaskRow__task-name">${taskName}</p>`
                 + (taskStatus !== TaskStatus.TODO
-                    ? `<p class="timeDiff">${durationToTimeString(timeDiff)}</p>`
+                    ? `<p class="timeDiff">${durationToTimeString(timeDiff, true)}</p>`
                     : ``
                 ) +
                 `<p class="targetFinishTime">${targetFinishTime}</p>
@@ -400,7 +406,7 @@
                 }
 
                 targetFinishTime = new Date(targetFinishTime.getTime() + task.targetDuration)
-                if (task.status === TaskStatus.FINISHED_FAILED || task.status === TaskStatus.FINISHED_SUCCESS) {
+                if (task.status === TaskStatus.FINISHED_FAILED || task.status === TaskStatus.FINISHED_SUCCESS || task.currentDuration > task.targetDuration) {
                     expectedFinishTime = new Date(expectedFinishTime.getTime() + task.currentDuration)
                 } else {
                     expectedFinishTime = new Date(expectedFinishTime.getTime() + task.targetDuration)
