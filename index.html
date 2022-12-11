@@ -104,6 +104,12 @@
             position: absolute;
             right: 100px;
         }
+        .c-TaskRow.TODO {
+            cursor: pointer;
+        }
+        .c-TaskRow.TODO:hover {
+            background: var(--background-button-hovered);
+        }
 
         .c-ButtonRow {
             height: 72px;
@@ -134,6 +140,10 @@
             line-height: 20px;
             letter-spacing: 0em;
             padding: 0 16px;
+            cursor: pointer;
+        }
+        .c-ActiveTaskRow:hover {
+            background: var(--background-button-hovered);
         }
 
         .c-Label {
@@ -185,11 +195,13 @@
                 this.targetFinishTime = null
             }
 
-            editTask() {
-                let input = prompt("Edit task.\n\nFormat: {Name}, {target duration}.")
-                let name, duration = input.split(',')
+            editTask(name, durationStr) {
+                name = name.trim()
+                durationStr = durationStr.trim()
+                duration = timeStringToDuration(durationStr)
+                const task = new Task(name, duration)
                 this.name = name
-                this.duration = duration
+                this.targetDuration = duration
             }
 
             render() {
@@ -211,13 +223,17 @@
         }
 
         function durationToTimeString (n) {
-            n = Math.round(n / 1000)
+            let negative = n < 0
+            if (negative) {
+                n *= -1
+            }
+            n = Math.floor(n / 1000)
 
             let timeArr = []
 
             while (n >= 1) {
                 timeArr.unshift(n % 60)
-                n /= 60
+                n = Math.floor(n / 60)
             }
 
             if (timeArr.length == 0) timeArr.push(0)
@@ -227,7 +243,7 @@
                 return (n < 10 && i > 0)? `0${n}` : `${n}`
             })
 
-            return timeArr.join(':')
+            return (negative ? '-' : '') + timeArr.join(':')
         }
 
         function createTask (name, durationStr, status) {
@@ -246,6 +262,7 @@
             render()
         }
 
+        /*
         createTask("Create task transforms text into miliseconds", "5:00", TaskStatus.FINISHED_SUCCESS)
         createTask("Transform functions from miliseconds to human (for active task and time diff)", "3:00", TaskStatus.FINISHED_SUCCESS)
         createTask("Active task task time updates over time", "3:00", TaskStatus.FINISHED_SUCCESS)
@@ -256,6 +273,7 @@
         createTask("Expected finish time gets adjusted", "4:00")
         createTask("Complete task interaction has nice style", "10:00")
         createTask("Improved styling on the active task row", "10:00")
+        */
 
         function renderHeader () {
             return `
@@ -263,17 +281,27 @@
             `
         }
 
+        function promptEditTask(i) {
+            const task = routine[i]
+            let name, duration, input = prompt("Edit task.\n\nFormat: {Name}, {target duration}.\ne.g. Make bed, 1m", `${task.name}, ${durationToTimeString(task.duration)}`)
+            ;[name, duration] = input.split(',')
+            task.editTask(name, duration)
+            render()
+        }
+
         function renderTaskRow (
+            i,
             taskName,
-            taskState,
+            taskStatus,
             targetFinishTime,
             timeDiff
         ) {
-            targetFinishTime = `${targetFinishTime.getHours()}:${targetFinishTime.getMinutes()}:${targetFinishTime.getSeconds()}`
+            targetFinishTime = dateToTimeString(targetFinishTime)
+
             return `
-            <div class="c-TaskRow ${taskState}">
+            <div class="c-TaskRow ${taskStatus}" ${taskStatus === TaskStatus.TODO ? `onmousedown=promptEditTask(${i})` : ``}>
                 <p class="c-TaskRow__task-name">${taskName}</p>`
-                + (taskState !== TaskStatus.TODO
+                + (taskStatus !== TaskStatus.TODO
                     ? `<p class="timeDiff">${durationToTimeString(timeDiff)}</p>`
                     : ``
                 ) +
@@ -336,9 +364,9 @@
                 <p class="c-Label">Task time</p>
                 <p>${durationToTimeString(currentDuration)}</p>
                 <p class="c-Label">Target</p>
-                <p>${targetFinish}</p>
+                <p>${dateToTimeString(targetFinish)}</p>
                 <p class="c-Label">Clock time</p>
-                <p>${clock}</p>
+                <p>${dateToTimeString(clock)}</p>
             </div>
             `
         }
@@ -377,8 +405,12 @@
             console.log('logic end')
         }
 
+        function padWithZero (n) {
+            return n < 10 ? `0${n}` : `${n}`
+        }
+
         function dateToTimeString (now) {
-            return `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`
+            return `${now.getHours()}:${padWithZero(now.getMinutes())}:${padWithZero(now.getSeconds())}`
         }
 
         function render() {
@@ -388,36 +420,41 @@
             logic()
 
             uiString += `<div class="stack">`
-            if (!state.started) {
+            if (!state.started && routine.length > 0) {
                 uiString += renderStartButton()
             }
-            uiString += routine.map((task => {
+            uiString += routine.map(((task, i) => {
                 if (task.status === TaskStatus.DOING) {
                     return renderActiveTaskRow(
                         task.name,
                         task.targetDuration,
                         task.currentDuration,
                         task.targetFinishTime,
-                        dateToTimeString(now)
+                        now
                     )
                 } else {
                     return renderTaskRow (
+                        i,
                         task.name,
                         task.status,
                         task.targetFinishTime,
-                        "-6:31")
+                        task.timeDiff)
                 }
             })).join('')
 
             uiString += renderCreateButton()
-            uiString += `
-                <div class="c-FinishDetails">
-                    <p>Expected finish</p>
-                    <p>${dateToTimeString(state.expectedFinishTime)}</p>
-                    <p>Target finish</p>
-                    <p>${dateToTimeString(state.targetFinishTime)}</p>
-                </div>
-            `
+            
+            if (routine.length > 0) {
+                uiString += `
+                    <div class="c-FinishDetails">
+                        <p>Expected finish</p>
+                        <p>${dateToTimeString(state.expectedFinishTime)}</p>
+                        <p>Target finish</p>
+                        <p>${dateToTimeString(state.targetFinishTime)}</p>
+                    </div>
+                `
+            }
+
             uiString += renderSpacer(160)
             uiString += `</div>`
 
